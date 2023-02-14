@@ -5,7 +5,8 @@
     {applications, [
         kernel,
         stdlib,
-        vernemq_dev
+        vernemq_dev,
+        jose
     ]},
     {env, []},
     {maintainers, ["Andre Graf", "Andre Fatton", "Lars Hesel Christensen"]},
