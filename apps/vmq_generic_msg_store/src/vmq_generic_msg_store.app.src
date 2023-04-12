@@ -7,6 +7,7 @@
         kernel,
         stdlib,
         sasl,
+        rocksdb,
         lager
     ]},
     {env, [
@@ -16,7 +17,7 @@
             {vmq_generic_msg_store, msg_store_find, 2, [internal]},
             {vmq_generic_msg_store, msg_store_read, 2, [internal]}
         ]},
-        {msg_store_engine, vmq_storage_engine_leveldb},
+        {msg_store_engine, vmq_storage_engine_rocksdb},
         {msg_store_opts, [
             {store_dir, "./data/msgstore"},
             {open_retries, 30},

@@ -41,7 +41,9 @@ init_per_testcase(_Case, Config) ->
     StorageEngine = proplists:get_value(engine, Config),
     application:load(vmq_generic_msg_store),
     application:set_env(vmq_generic_msg_store, msg_store_engine, StorageEngine),
+    file:del_dir_r("./data/msgstore"),
     application:ensure_all_started(vmq_generic_msg_store),
+
     Config.
 
 end_per_testcase(message_compat_pre_test, Config) ->
@@ -54,8 +56,8 @@ end_per_testcase(_, Config) ->
 
 all() ->
     [
+     {group, vmq_storage_engine_rocksdb},
      {group, vmq_storage_engine_leveldb},
-     %{group, vmq_storage_engine_dets},
      {group, vmq_storage_engine_ets},
      {group, basic}
     ].
@@ -71,9 +73,9 @@ groups() ->
                   idx_compat_pre_test
                  ],
     [
-     {vmq_storage_engine_leveldb, [shuffle], StorageTests},
-     {vmq_storage_engine_dets, [shuffle], StorageTests},
-     {vmq_storage_engine_ets, [shuffle], StorageTests},
+      {vmq_storage_engine_leveldb, [shuffle], StorageTests},
+      {vmq_storage_engine_rocksdb, [shuffle], StorageTests},
+      {vmq_storage_engine_ets, [shuffle], StorageTests},
      {basic, [shuffle], BasicTests}
     ].
 
