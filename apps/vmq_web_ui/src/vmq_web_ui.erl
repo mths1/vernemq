@@ -11,6 +11,7 @@
 %% the License.
 
 -module(vmq_web_ui).
+-include_lib("kernel/include/logger.hrl").
 
 -behaviour(vmq_http_config).
 
@@ -83,6 +84,8 @@ process_request(Req, State) ->
     case Path of
         <<"/webuiapi/login">> -> login(Req, State);
         <<"/webuiapi/logout">> -> logout(Req, State);
+        <<"/webuiapi/v1/read">> -> read(Req, State);
+        <<"/webuiapi/v1/write">> -> write(Req, State);
         _ -> forward_request(Req, State)
     end.
 
@@ -92,10 +95,10 @@ add_token(Token) ->
 token_valid(Token) ->
     case ets:lookup(webuitoken, Token) of
         undefined ->
-            lager:warning("Access to webui with an empty/undefined token"),
+            ?LOG_WARNING("Access to webui with an empty/undefined token"),
             false;
         [] ->
-            lager:warning("Access to webui with invalid token"),
+            ?LOG_WARNING("Access to webui with invalid token"),
             false;
         [{_, TS}] ->
             case (os:system_time(second) < TS) of
@@ -105,7 +108,7 @@ token_valid(Token) ->
                     false
             end;
         _ ->
-            lager:warning("Access to webui with an invalid token"),
+            ?LOG_WARNING("Access to webui with an invalid token"),
             false
     end.
 
@@ -142,6 +145,77 @@ login(Req, State) ->
         end,
     {stop, Req2, State}.
 
+read(Req, State) ->
+    case check_access(Req) of
+        true -> do_read(Req, State);
+        _ -> invalid_access(Req, State)
+    end.
+
+write(Req, State) ->
+    case check_access(Req) of
+        true -> do_write(Req, State);
+        _ -> invalid_access(Req, State)
+    end.
+
+do_read(Req, State) ->
+    Config = application:get_env(vmq_web_ui, config, []),
+    AllowRead = proplists:get_value(uifileaccessallowread, Config, false),
+    case AllowRead of
+        true ->
+            Params = cowboy_req:parse_qs(Req),
+            Ft = proplists:get_value(<<"file">>, Params, undefined),
+            ?LOG_INFO("Loading tyoe ~p~n", [Ft]),
+
+            {ok, FileName} =
+                case Ft of
+                    <<"vmq_passwd">> -> {ok, application:get_env(vmq_passwd, file)};
+                    <<"vmq_acl">> -> {ok, application:get_env(vmq_acl, file)};
+                    <<"vmq_config">> -> {ok, "./etc/vernemq.conf"};
+                    _ -> {error, invalid_request}
+                end,
+            ?LOG_INFO("Loading file ~p~n", [FileName]),
+            {ok, Data} = file:read_file(FileName),
+
+            Req2 = cowboy_req:reply(
+                200,
+                #{<<"content-type">> => <<"text/plain">>},
+                Data,
+                Req
+            ),
+            {stop, Req2, State};
+        _ ->
+            Req2 = cowboy_req:reply(
+                403,
+                #{<<"content-type">> => <<"text/plain">>},
+                <<"Not enabled">>,
+                Req
+            ),
+            {stop, Req2, State}
+    end.
+
+do_write(Req, State) ->
+    Config = application:get_env(vmq_web_ui, config, []),
+    AllowWrite = proplists:get_value(uifileaccessallowwrite, Config, false),
+    case AllowWrite of
+        true ->
+            Params = cowboy_req:parse_qs(Req),
+            Ft = proplists:get_value(<<"file">>, Params, undefined),
+            ?LOG_INFO("Writing type ~p~n", [Ft]),
+
+            {ok, FileName} =
+                case Ft of
+                    <<"vmq_passwd">> -> {ok, application:get_env(vmq_passwd, file)};
+                    <<"vmq_acl">> -> {ok, application:get_env(vmq_acl, file)};
+                    <<"vmq_config">> -> {ok, "./etc/vernemq.conf"};
+                    _ -> {error, invalid_request}
+                end,
+
+            ?LOG_INFO("Write is currently not implemented.");
+        _ ->
+            ?LOG_WARNING("Write attempt by UI, but write is disabled.")
+    end,
+    ok.
+
 check_access(Req) ->
     Token = cowboy_req:header(<<"x-token">>, Req, undefined),
     case token_valid(Token) of
@@ -159,6 +233,8 @@ do_forward_request(Req, State) ->
             _ -> Fwd
         end,
     {ok, LongName} = parse_ln(VerneMQNode),
+    %todo: check if longname is part of cluster, as we do not want to allow arbitriary forwards
+
     API = lists:sublist(Tokens, 5, length(Tokens)),
     APICall = list_to_binary(lists:join("/", API)),
     Config = application:get_env(vmq_web_ui, config, []),
