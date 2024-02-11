@@ -2,6 +2,7 @@ function equals(o1, o2)
     if o1 == o2 then return true end
     local o1Type = type(o1)
     local o2Type = type(o2)
+
     if o1Type ~= o2Type then return false end
     if o1Type ~= 'table' then return false end
 

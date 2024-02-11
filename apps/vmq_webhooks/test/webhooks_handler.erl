@@ -41,14 +41,16 @@ init(Req, State) ->
     ?DEBUG andalso io:format(user, ">>> ~s~n", [Body]),
     case cowboy_req:path(Req) of
         <<"/">> ->
-            {Code, Resp} = process_hook(Hook, vmq_json:decode(Body, [{labels, atom}, return_maps])),
+            {ok, JsonResponse} = vmq_json:decode(Body),
+            {Code, Resp} = process_hook(Hook, JsonResponse),
             Req2 =
                 cowboy_req:reply(Code,
                                  #{<<"content-type">> => <<"text/json">>},
                                  encode(Resp), Req1),
             {ok, Req2, State};
         <<"/cache">> ->
-            {Code, Resp} = process_cache_hook(Hook, vmq_json:decode(Body, [{labels, atom}, return_maps])),
+            {ok, JsonResponse} = vmq_json:decode(Body),
+            {Code, Resp} = process_cache_hook(Hook, JsonResponse),
             Req2 =
                 cowboy_req:reply(Code,
                                  #{<<"content-type">> => <<"text/json">>,
@@ -75,23 +77,11 @@ process_cache_hook(<<"auth_on_register">>, #{username := SenderPid}) ->
     Pid = list_to_pid(binary_to_list(SenderPid)),
     Pid ! cache_auth_on_register_ok,
     {200, #{result => <<"ok">>}};
-process_cache_hook(<<"auth_on_register_m5">>, #{username := SenderPid}) ->
-    Pid = list_to_pid(binary_to_list(SenderPid)),
-    Pid ! cache_auth_on_register_m5_ok,
-    {200, #{result => <<"ok">>}};
 process_cache_hook(<<"auth_on_publish">>, #{username := SenderPid}) ->
     Pid = list_to_pid(binary_to_list(SenderPid)),
     Pid ! cache_auth_on_publish_ok,
     {200, #{result => <<"ok">>}};
-process_cache_hook(<<"auth_on_publish_m5">>, #{username := SenderPid}) ->
-    Pid = list_to_pid(binary_to_list(SenderPid)),
-    Pid ! cache_auth_on_publish_ok,
-    {200, #{result => <<"ok">>}};
 process_cache_hook(<<"auth_on_subscribe">>, #{username := SenderPid}) ->
-    Pid = list_to_pid(binary_to_list(SenderPid)),
-    Pid ! cache_auth_on_subscribe_ok,
-    {200, #{result => <<"ok">>}};
-process_cache_hook(<<"auth_on_subscribe_m5">>, #{username := SenderPid}) ->
     Pid = list_to_pid(binary_to_list(SenderPid)),
     Pid ! cache_auth_on_subscribe_ok,
     {200, #{result => <<"ok">>}}.

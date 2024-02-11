@@ -21,7 +21,7 @@
         pbkdf2,
         eredis,
         hackney,
-        jsx,
+        thoas,
         bcrypt,
         gen_server2
     ]},

@@ -14,7 +14,7 @@
         vmq_ql,
         vmq_plugin,
         clique,
-        jsx,
+        thoas,
         gen_server2,
         systemd,
         stdout_formatter

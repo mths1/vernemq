@@ -13,9 +13,9 @@
 %% limitations under the License.
 -module(vmq_webhooks_plugin).
 
--include_lib("kernel/include/logger.hrl").
 -include_lib("vernemq_dev/include/vernemq_dev.hrl").
 -include_lib("hackney/include/hackney_lib.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -behaviour(gen_server).
 -behaviour(auth_on_register_hook).
@@ -825,7 +825,7 @@ maybe_call_endpoint(Endpoint, EOpts, Hook, Args) when
     case vmq_webhooks_cache:lookup(Endpoint, Hook, Args) of
         not_found ->
             case call_endpoint(Endpoint, EOpts, Hook, Args) of
-                {Modifiers, ExpiryInSecs} when is_list(Modifiers); is_map(Modifiers) ->
+                {Modifiers, ExpiryInSecs} when is_list(Modifiers) ->
                     vmq_webhooks_cache:insert(Endpoint, Hook, Args, ExpiryInSecs, Modifiers),
                     Modifiers;
                 Res ->
@@ -867,15 +867,15 @@ call_endpoint(Endpoint, EOpts, Hook, Args0) ->
             {ok, 200, RespHeaders, CRef} ->
                 case hackney:body(CRef) of
                     {ok, Body} ->
-                        case vmq_json:is_json(Body) of
-                            true ->
+                        case vmq_json:decode(Body) of
+                            {ok, JsonResponse} ->
                                 handle_response(
                                     Hook,
                                     parse_headers(RespHeaders),
-                                    vmq_json:decode(Body, [{labels, binary}, {return_maps, false}]),
+                                    JsonResponse,
                                     EOpts
                                 );
-                            false ->
+                            {error, _Reason} ->
                                 {error, received_payload_not_json}
                         end;
                     {error, _} = E ->
@@ -939,14 +939,11 @@ digits(_, Acc) ->
 ) -> any().
 handle_response(Hook, #{max_age := MaxAge}, Decoded, EOpts) when
     Hook =:= auth_on_register;
-    Hook =:= auth_on_register_m5;
     Hook =:= auth_on_publish;
-    Hook =:= auth_on_publish_m5;
-    Hook =:= auth_on_subscribe;
-    Hook =:= auth_on_subscribe_m5
+    Hook =:= auth_on_subscribe
 ->
     case handle_response(Hook, Decoded, EOpts) of
-        Res when is_list(Res); is_map(Res) ->
+        Res when is_list(Res) ->
             {Res, MaxAge};
         Res ->
             Res
@@ -969,26 +966,26 @@ handle_response(Hook, Decoded, EOpts) when
     Hook =:= on_deliver
 ->
     %% this clause handles all results with modifiers in the return value.
-    case proplists:get_value(<<"result">>, Decoded) of
+    case maps:get(<<"result">>, Decoded) of
         <<"ok">> ->
-            normalize_modifiers(Hook, proplists:get_value(<<"modifiers">>, Decoded, []), EOpts);
+            normalize_modifiers(Hook, maps:get(<<"modifiers">>, Decoded, []), EOpts);
         <<"next">> ->
             next;
         Result when is_list(Result) ->
-            {decoded_error, proplists:get_value(<<"error">>, Result, unknown_error)}
+            {decoded_error, maps:get(<<"error">>, Result, unknown_error)}
     end;
 handle_response(Hook, Decoded, EOpts) when
     Hook =:= auth_on_subscribe; Hook =:= on_unsubscribe
 ->
     %% this clause handles the cases where the results are not
     %% returned as modifiers.
-    case proplists:get_value(<<"result">>, Decoded) of
+    case maps:get(<<"result">>, Decoded) of
         <<"ok">> ->
-            normalize_modifiers(Hook, proplists:get_value(<<"topics">>, Decoded, []), EOpts);
+            normalize_modifiers(Hook, maps:get(<<"topics">>, Decoded, []), EOpts);
         <<"next">> ->
             next;
         Result when is_list(Result) ->
-            {decoded_error, proplists:get_value(<<"error">>, Result, unknown_error)}
+            {decoded_error, maps:get(<<"error">>, Result, unknown_error)}
     end;
 handle_response(_Hook, _Decoded, _) ->
     next.

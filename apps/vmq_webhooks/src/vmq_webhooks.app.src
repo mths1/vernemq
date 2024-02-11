@@ -12,7 +12,7 @@
         ssl,
         clique,
         poolboy,
-        jsx,
+        thoas,
         hackney
     ]},
     {env, [
